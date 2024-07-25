@@ -1,0 +1,23 @@
+.orange {
+  color: #ff8d18 !important;
+}
+
+.lightblue {
+  color: #5dc7ca !important;
+}
+
+.lightgray {
+  color: #cee0e1 !important;
+}
+
+.bg-lightgray {
+  background-color: #cee0e1 !important;
+}
+
+.bg-orange {
+  background-color: #ff8d18 !important;
+}
+
+.bg-lightblue {
+  background-color: #5dc7ca !important;
+}
