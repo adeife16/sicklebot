@@ -45,7 +45,7 @@ import Form from "@/components/Form.vue";
 import Button from "@/components/Button.vue";
 import Input from "@/components/Input.vue";
 import router from "@/router";
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import axios from "axios";
 import { toast } from "vue3-toastify";
 
@@ -80,8 +80,11 @@ export default {
         });
         console.log(response);
         if (response.data.status === 200) {
-          sessionStorage.setItem("userId", response.data.user_id);
-          router.push("/chat");
+          sessionStorage.setItem("userId", response.data.data.user_id);
+          toast.success(response.data.message);
+          setTimeout(() => {
+            router.push("/chat");
+          }, 2000);
         } else {
           btnDisabled.value = false;
           toast.error(response.data.message);
@@ -91,6 +94,13 @@ export default {
         toast.error("Error logging in");
       }
     };
+
+    onMounted(() => {
+      const userId = sessionStorage.getItem("userId");
+      if (userId && userId !== "undefined") {
+        router.push("/chat");
+      }
+    })    
 
     return {
       logo,
