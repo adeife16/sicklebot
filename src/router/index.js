@@ -18,14 +18,15 @@ const routes = [
   {
     path: '/chat',
     name: 'chat',
-    component: ChatView
-  },
+    component: ChatView,
 
+  },
   {
-    path: '/history',
-    name: 'history',
-    component: HistoryView
-  }
+    path: '/history/:chatId',
+    name: 'chatId',
+    component: HistoryView,
+    props: true
+  },
 ]
 
 const router = createRouter({

@@ -82,17 +82,14 @@ export default {
     const server_url = process.env.VUE_APP_BACKEND_URL;
 
     const handleInput = async () => {
-      if (!email.value || !password.value || !confirmPassword.value) {
-        toast.error("Invalid Email and Password");
-        return;
-      }
+      
       if (password.value !== confirmPassword.value) {
         toast.error("Passwords do not match");
         return;
       }
       btnDisabled.value = true;
       try {
-        const response = await axios.post(`${server_url}/register`, {
+        const response = await axios.post(`${server_url}/auth/signup`, {
           register: {
             first_name: firstName.value,
             last_name: lastName.value,
@@ -101,19 +98,19 @@ export default {
             confirm_password: confirmPassword.value,
           },
         });
-        // console.log(response);
-        if (response.data.status === 200) {
+        if (response.status === 200) {
           toast.success(response.data.message);
           setTimeout(() => {
-              router.push("/");
+            router.push("/");
           }, 2000);
         } else {
-          btnDisabled.value = false;
           toast.error(response.data.message);
+          btnDisabled.value = false;
         }
       } catch (error) {
+        console.log(error);
         btnDisabled.value = false;
-        toast.error("Error registering");
+        toast.error(error.response?.data?.message || "An error occurred during registration.");
       }
     };
     return {

@@ -72,15 +72,15 @@ export default {
       }
 
       try {
-        const response = await axios.post(`${server_url}/login`, {
+        const response = await axios.post(`${server_url}/auth/login`, {
           login: {
             email: email.value,
             password: password.value,
           },
         });
-        console.log(response);
-        if (response.data.status === 200) {
-          sessionStorage.setItem("userId", response.data.data.user_id);
+        if (response.status === 200) {
+          sessionStorage.setItem("userId", response.data.user.userId);
+          sessionStorage.setItem("token", response.data.accessToken);
           toast.success(response.data.message);
           setTimeout(() => {
             router.push("/chat");
@@ -91,7 +91,7 @@ export default {
         }
       } catch (error) {
         btnDisabled.value = false;
-        toast.error("Error logging in");
+        toast.error(error.response?.data?.message || "An error occurred during login.");
       }
     };
 

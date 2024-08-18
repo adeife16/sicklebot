@@ -1,9 +1,36 @@
 <template>
   <div class="flex h-screen bg-gray-100">
     <div class="mx-auto max-w-md w-full bg-white rounded-lg shadow-md">
+      <div
+        v-if="menu"
+        class="fixed inset-0 h-screen w-screen z-20 right-[-100%]"
+      >
+        <div class="flex flex-col h-full p-4 bg-white rounded-lg shadow-md">
+          <div class="flex items-center justify-between">
+            <h2 class="text-2xl font-bold">Menu</h2>
+            <Button @click="toggleMenu">
+              <XMarkIcon class="h-6 w-6" />
+            </Button>
+          </div>
+          <div
+            v-for="chat in history"
+            :key="chat.chatId"
+            class="mt-4 space-y-2"
+          >
+            <div class="text-black hover:text-orange-500">
+              <router-link :to="`/history/${chat.chatId}`">
+                Chat on {{ chat.date }}
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="px-3 py-2 bg-gray-200 flex justify-between items-center">
-        <span class="text-lg font-bold">Chat</span>
-        <Button class="text-black-500">
+        <Button :btnClass="'bg-orange-500 text-white'" @click="newChat"
+          >New Chat</Button
+        >
+        <Button class="text-black" @click="logout">Logout</Button>
+        <Button class="text-black-500" @click.prevent="toggleMenu">
           <Bars3Icon class="h-6 w-6" />
         </Button>
       </div>
@@ -11,7 +38,11 @@
         <div
           v-for="message in messages"
           :key="message.id"
-          :class="['flex', message.user ? 'justify-end' : 'justify-start', 'py-2']"
+          :class="[
+            'flex',
+            message.user ? 'justify-end' : 'justify-start',
+            'py-2',
+          ]"
         >
           <div class="flex items-center">
             <div
@@ -33,6 +64,13 @@
             </div>
           </div>
         </div>
+        <div v-if="loading" class="flex justify-start py-2">
+          <div class="flex items-center">
+            <div class="rounded-lg p-3 max-w-xs text-white">
+              <img :src="chatLoader" width="100" />
+            </div>
+          </div>
+        </div>
       </div>
       <div class="flex items-center px-1 py-2 border-t border-gray-200">
         <input
@@ -44,6 +82,7 @@
         <Button
           @click="sendMessage"
           class="rounded-lg bg-orange-500 text-white px-2 py-1"
+          :disabled="disabled"
         >
           <PaperAirplaneIcon class="h-6 w-6" />
         </Button>
@@ -55,11 +94,18 @@
 <script>
 import axios from "axios";
 import Button from "../components/Button.vue";
-import { Bars3Icon, PaperAirplaneIcon, UserCircleIcon } from "@heroicons/vue/24/solid";
+import {
+  Bars3Icon,
+  PaperAirplaneIcon,
+  UserCircleIcon,
+  XMarkIcon,
+} from "@heroicons/vue/24/solid";
 import { ref, onMounted, onUnmounted } from "vue";
 import router from "../router";
 import { toast } from "vue3-toastify";
 import logo from "../assets/logo.png";
+import chatLoader from "../../public/chatLoader.svg";
+import { useRoute } from "vue-router";
 
 export default {
   components: {
@@ -67,17 +113,28 @@ export default {
     Bars3Icon,
     PaperAirplaneIcon,
     UserCircleIcon,
+    XMarkIcon,
   },
   setup() {
     const messageInput = ref("");
     const messages = ref([]);
 
+    const disabled = ref(false);
+    const loading = ref(false);
+    const menu = ref(false);
+
+    const history = ref([]);
+
     const server_url = process.env.VUE_APP_BACKEND_URL;
 
+    // send message
     const sendMessage = async (init = null) => {
-      const messageText = init || messageInput.value;
+      disabled.value = true;
+
+      const messageText = messageInput.value;
       if (!messageText) return;
 
+      // add message to interface
       const userMessage = {
         id:
           Math.random().toString(36).substring(2, 15) +
@@ -88,19 +145,30 @@ export default {
 
       messages.value.push(userMessage);
 
+      // send message to backend
       try {
-        const response = await axios.post(`${server_url}/chat`, {
-          chat: {
-            prompt: messageText,
-            chat_id: sessionStorage.getItem("chatId"),
-            user_id: sessionStorage.getItem("userId"),
+        loading.value = true;
+        const response = await axios.post(
+          `${server_url}/chat`,
+          {
+            chat: {
+              prompt: messageText,
+              chatId: sessionStorage.getItem("chatId"),
+            },
           },
-        });
-        console.log(response.data.data);
+          {
+            headers: {
+              Authorization: `Bearer ${sessionStorage.getItem("token")}`,
+            },
+          }
+        );
+        setTimeout(() => {
+          messages.value.push(response.data.bot_res);
+        }, 2000);
 
-        if (!init) {
-          messages.value.push(response.data.data);
-        }
+        // auto scroll page to the bottom
+        const container = document.querySelector(".chat-interface");
+        container.scrollTop = container.scrollHeight;
 
         messageInput.value = "";
       } catch (error) {
@@ -110,27 +178,43 @@ export default {
             "An error occurred while sending the message."
         );
       }
+      loading.value = false;
+      disabled.value = false;
     };
 
+    // initialize chat
     const initChat = async () => {
       try {
-        const response = await axios.get(`${server_url}/chat?init=true`);
-        console.log(response.data.data);
-        sessionStorage.setItem("chatId", response.data.data);
+        const response = await axios.get(`${server_url}/chat/init`, {
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem("token")}`,
+          },
+        });
+        // console.log(response.data.chat);
+        sessionStorage.setItem("chatId", response.data.chat);
       } catch (error) {
         console.error(error);
-        // toast.error(error.response?.data?.message || "An error occurred during chat initialization.");
+        toast.error(
+          error.response?.data?.message ||
+            "An error occurred during chat initialization."
+        );
       }
     };
 
+    // get current chat
     const getChat = async () => {
       try {
-        const response = await axios.get(
-          `${server_url}/chat?getchat=${sessionStorage.getItem("chatId")}`
-        );
-        console.log(response.data.data);
-        let chats = response.data.data;
-        if (response.data.data.length === 0) {
+        const authHeader = `Bearer ${sessionStorage.getItem("token")}`;
+
+        const chatId = sessionStorage.getItem("chatId");
+        const response = await axios.get(`${server_url}/chat/${chatId}`, {
+          headers: {
+            Authorization: authHeader,
+          },
+        });
+        // console.log(response.data.data);
+        let chats = response.data.chat;
+        if (response.data.chat.length === 0) {
           await initChat();
         } else {
           for (let chat of chats) {
@@ -159,26 +243,87 @@ export default {
       }
     };
 
+    // get chat history
+    const getHistory = async () => {
+      try {
+        const response = await axios.get(`${server_url}/chat/history`, {
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem("token")}`,
+          },
+        });
+
+        const data = response.data.chats;
+
+        for (let chat of data) {
+          history.value.push({
+            chatId: chat.chat_id,
+            date: formatDate(chat.date_created.split("T")[0]),
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error(
+          error.response?.data?.message ||
+            "An error occurred while fetching the chat history."
+        );
+      }
+    };
+
+    // display menu
+    const toggleMenu = () => {
+      menu.value = !menu.value;
+    };
+
+    // start new chat
+    const newChat = () => {
+      sessionStorage.removeItem("chatId");
+      // history.value = [];
+      initChat();
+      messages.value = [];
+      router.push("/chat");
+    };
+
+    // date converter
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      const day = date.getDate();
+      const month = date.toLocaleString("default", { month: "long" });
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    };
+
     const handleKeyPress = (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
+        if (loading.value) return;
         sendMessage();
       }
     };
 
-    onMounted(() => {
+
+    const logout = () => {
+      sessionStorage.clear();
+      router.push("/");
+    };
+
+    onMounted(async () => {
       const userId = sessionStorage.getItem("userId");
+      // check if user is logged in
       if (!userId || userId === "undefined") {
         router.push("/");
         return;
       }
 
+      // check if chat is initialized
       const chatId = sessionStorage.getItem("chatId");
       if (!chatId || chatId === "undefined") {
         initChat();
       } else {
         getChat();
       }
+
+      // get chat history
+      getHistory();
 
       window.addEventListener("keydown", handleKeyPress);
     });
@@ -187,7 +332,20 @@ export default {
       window.removeEventListener("keydown", handleKeyPress);
     });
 
-    return { messageInput, messages, sendMessage, logo };
+    return {
+      messageInput,
+      messages,
+      sendMessage,
+      logo,
+      disabled,
+      loading,
+      chatLoader,
+      toggleMenu,
+      menu,
+      history,
+      newChat,
+      logout
+    };
   },
 };
 </script>
@@ -195,5 +353,15 @@ export default {
 <style>
 .chat-interface {
   height: 83%;
+}
+
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s;
+}
+
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
 }
 </style>
